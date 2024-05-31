@@ -1,0 +1,24 @@
+{
+    "db_config": {
+        "host": "your_host",
+        "user": "your_username",
+        "password": "your_password",
+        "database": "your_database"
+    },
+    "tables": {
+        "de_e_11051": {
+            "columns": ["IDENTIFIER", "DE_A_1", "DE_A_2"]
+        },
+        "catissue_form_record_entry": {
+            "columns": ["IDENTIFIER", "FORM_CTXT_ID", "OBJECT_ID", "RECORD_ID", "UPDATED_BY", "UPDATE_TIME", "ACTIVITY_STATUS", "FORM_STATUS", "OLD_OBJECT_ID"],
+            "constant_values": {
+                "FORM_CTXT_ID": 1,     
+                "OBJECT_ID": 1,
+                "RECORD_ID": 1,
+                "UPDATED_BY": 1,
+                "ACTIVITY_STATUS": "Active",
+                "FORM_STATUS": "COMPLETE"
+            }
+        }
+    }
+}
