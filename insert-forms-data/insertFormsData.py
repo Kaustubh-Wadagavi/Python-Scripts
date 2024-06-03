@@ -1,98 +1,56 @@
-import mysql.connector
-import sys
+#!/usr/bin/env python3
+
 import xml.etree.ElementTree as ET
+import sys
+import csv
 
-def extract_table_column_field_info(xml_data):
-    try:
-        info_dict = {}
-        root = ET.fromstring(xml_data)
-        form_caption = root.find('caption').text
-        table_name = root.find('dbTableName').text
-        primary_key = root.find('primaryKey').text
-        info_dict['form_caption'] = form_caption
-        info_dict['table_name'] = table_name
-        info_dict['primary_key'] = primary_key
+def extractFieldColumnDetails(filePath):
+    tree = ET.parse(filePath)
+    root = tree.getroot()
 
-        controls_map = root.find('.//controlsMap')
-        fields = []
-        for entry in controls_map.findall('.//entry'):
-            field_name = entry.find('string').text
-            caption = entry.find('.//caption').text
-            fields.append({'field_name': caption, 'column_name': field_name})
-        info_dict['fields'] = fields
+    formId = root.find('id').text
+    formCaption = root.find('caption').text
+    tableName = root.find('dbTableName').text
+    primaryKey = root.find('primaryKey').text
 
-        return info_dict
+    fields = []
+    for control in root.find('controlsMap'):
+        field = {}
+        controlElement = control[1]
+        field['caption'] = controlElement.find('caption').text
+        field['columnName'] = controlElement.find('dbColumnName').text
+        fields.append(field)
 
-    except Exception as e:
-        print("Error extracting information from XML:", e)
-        return None
+    print(f"Form ID: {formId}")
+    print(f"Form Caption: {formCaption}")
+    print(f"{tableName},{primaryKey}")
 
-def process_extracted_info(extracted_info):
-    if extracted_info:
-        print("Form Caption:", extracted_info['form_caption'])
-        print("Table Name:", extracted_info['table_name'])
-        print("Primary Key:", extracted_info['primary_key'])
-        print("Fields:")
-        for field in extracted_info['fields']:
-            print(f"Field Name: {field['field_name']}, Column Name: {field['column_name']}")
+    for field in fields:
+        print(f"{field['caption']},{field['columnName']}")
 
-def get_xml(config_file):
-    try:
-        with open(config_file, 'r') as f:
-            config = {}
-            for line in f:
-                parts = line.strip().split('=')
-                if len(parts) == 2:
-                    key, value = parts
-                    config[key.strip()] = value.strip()
+    return formId, tableName, {field['caption']: field['columnName'] for field in fields}
 
-        host = config.get('host', 'localhost')
-        user = config.get('user', 'root')
-        password = config.get('password', '')
-        database = config.get('database', '')
-
-        form_name = config.get('name', '')
-
-        connection = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database
-        )
-
-        if connection.is_connected():
-            cursor = connection.cursor(dictionary=True)
-
-            query = "SELECT XML FROM dyextn_containers WHERE CAPTION = %s"
-            cursor.execute(query, (form_name,))
-            result = cursor.fetchone()
-
-            if result:
-                xml_data = result['XML']
-                return xml_data.decode()
-
-            else:
-                print("No XML found for the provided form name.")
-                return None
-
-    except mysql.connector.Error as error:
-        print("Error while connecting to MySQL", error)
-        return None
-
-    finally:
-        if 'connection' in locals() and connection.is_connected():
-            cursor.close()
-            connection.close()
-            print("MySQL connection is closed")
+def readConfigFile(configFile):
+    dbConfig = {}
+    with open(configFile, 'r') as f:
+        for line_num, line in enumerate(f, start=1):
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                try:
+                    key, value = line.split('=', 1)
+                    dbConfig[key.strip()] = value.strip()
+                except ValueError:
+                    print(f"Error parsing line {line_num}: {line}")
+    return dbConfig
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: ./importFormsData.py <config_file>")
+    if len(sys.argv) != 4:
+        print("Usage: python script.py <db_config_file> <path_to_xml_file> <path_to_csv_file>")
         sys.exit(1)
 
-    config_file = sys.argv[1]
-    xml_data = get_xml(config_file)
-    if xml_data:
-        extracted_info = extract_table_column_field_info(xml_data)
-        if extracted_info:
-            process_extracted_info(extracted_info)
+    dbConfigFile = sys.argv[1]
+    dbConfig = readConfigFile(dbConfigFile)
+    xmlFilePath = sys.argv[2]
+    csvFilePath = sys.argv[3]
+
+    formId, tableName, fieldColumnMapping = extractFieldColumnDetails(xmlFilePath)
