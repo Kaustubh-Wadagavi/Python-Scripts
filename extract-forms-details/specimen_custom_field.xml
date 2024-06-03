@@ -1,0 +1,70 @@
+<container id="1">
+  <id>176</id>
+  <name>specimen_custom_field</name>
+  <caption>Specimen Custom Field</caption>
+  <dbTableName>DE_E_11051</dbTableName>
+  <primaryKey>IDENTIFIER</primaryKey>
+  <sequenceNo>2</sequenceNo>
+  <ctrlId>2</ctrlId>
+  <managedTables>false</managedTables>
+  <controlsMap class="linked-hash-map" id="2">
+    <entry>
+      <string>specimen_exist</string>
+      <stringField id="3">
+        <id>1</id>
+        <name>specimen_exist</name>
+        <userDefinedName>specimen_exist</userDefinedName>
+        <caption>Specimen Exist?</caption>
+        <labelPosition>LEFT_SIDE</labelPosition>
+        <dbColumnName>DE_A_1</dbColumnName>
+        <phi>false</phi>
+        <sequenceNumber>1</sequenceNumber>
+        <xPos>1</xPos>
+        <showLabel>true</showLabel>
+        <skipLogicSourceControl>false</skipLogicSourceControl>
+        <calculatedSourceControl>false</calculatedSourceControl>
+        <skipLogicTargetControl>false</skipLogicTargetControl>
+        <showInGrid>false</showInGrid>
+        <hidden>false</hidden>
+        <validationRules id="4"/>
+        <container reference="1"/>
+        <noOfColumns>0</noOfColumns>
+        <defaultValue></defaultValue>
+        <url>false</url>
+        <password>false</password>
+      </stringField>
+    </entry>
+    <entry>
+      <string>comments</string>
+      <textArea id="5">
+        <id>2</id>
+        <name>comments</name>
+        <userDefinedName>comments</userDefinedName>
+        <caption>Comments</caption>
+        <labelPosition>LEFT_SIDE</labelPosition>
+        <dbColumnName>DE_A_2</dbColumnName>
+        <phi>false</phi>
+        <sequenceNumber>2</sequenceNumber>
+        <xPos>1</xPos>
+        <showLabel>true</showLabel>
+        <skipLogicSourceControl>false</skipLogicSourceControl>
+        <calculatedSourceControl>false</calculatedSourceControl>
+        <skipLogicTargetControl>false</skipLogicTargetControl>
+        <showInGrid>false</showInGrid>
+        <hidden>false</hidden>
+        <validationRules id="6"/>
+        <container reference="1"/>
+        <noOfColumns>0</noOfColumns>
+        <defaultValue></defaultValue>
+        <noOfRows>0</noOfRows>
+      </textArea>
+    </entry>
+  </controlsMap>
+  <userDefCtrlNames id="7">
+    <string>comments</string>
+    <string>specimen_exist</string>
+  </userDefCtrlNames>
+  <deletedCtrls id="8"/>
+  <skipRules id="9"/>
+  <layouts id="10"/>
+</container>
