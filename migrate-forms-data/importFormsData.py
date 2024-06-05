@@ -5,64 +5,62 @@ from datetime import datetime, timedelta
 import time
 import sys
 
-
-
 def updateDeIdSeq(cursor):
     try:
         cursor.execute("SELECT MAX(RECORD_ID) AS max_record_id FROM catissue_form_record_entry")
-        max_record_id = cursor.fetchone()['max_record_id']
+        maxRecordId = cursor.fetchone()['max_record_id']
 
-        if max_record_id is not None:
-            update_query = "UPDATE DYEXTN_ID_SEQ SET LAST_ID = %s WHERE TABLE_NAME = 'RECORD_ID_SEQ'"
-            cursor.execute(update_query, (max_record_id,))
+        if maxRecordId is not None:
+            updateQuery = "UPDATE DYEXTN_ID_SEQ SET LAST_ID = %s WHERE TABLE_NAME = 'RECORD_ID_SEQ'"
+            cursor.execute(updateQuery, (maxRecordId,))
         else:
             print("No records found in catissue_form_record_entry table.")
 
     except mysql.connector.Error as err:
         print(f"Error: {err}")
 
-def executeBatchFile(cursor, failed_records_filename, total_records, processed_records):
-    start_time = time.time()
+def executeBatchFile(cursor, failedRecordsFilename, totalRecords, processedRecords):
+    startTime = time.time()
     passed = 0
-    with open('batch.sql', 'r') as sql_file:
-        sql_commands = sql_file.read().split(';')
-        total_commands = len(sql_commands) // 2
+    with open('batch.sql', 'r') as sqlFile:
+        sqlCommands = sqlFile.read().split(';')
+        totalCommands = len(sqlCommands) // 2
 
-        for idx in range(0, len(sql_commands) - 1, 2):
-                cursor.execute(sql_commands[idx])
-                cursor.execute(sql_commands[idx + 1])
+        for idx in range(0, len(sqlCommands) - 1, 2):
+                cursor.execute(sqlCommands[idx])
+                cursor.execute(sqlCommands[idx + 1])
                 passed += 1
 
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    elapsed_str = str(timedelta(seconds=elapsed_time))
-    avg_rows_per_sec = passed / elapsed_time
+    endTime = time.time()
+    elapsedTime = endTime - startTime
+    elapsedStr = str(timedelta(seconds=elapsedTime))
+    avgRowsPerSec = passed / elapsedTime
 
-    log_message = (f"Processed {processed_records} rows (passed = {passed}, failed = {total_records - passed}) in {elapsed_str} "
-                   f"({int(elapsed_time * 1000)} ms) @ {int(avg_rows_per_sec)} rows per second.")
+    logMessage = (f"Processed {processedRecords} rows (passed = {passed}, failed = {totalRecords - passed}) in {elapsedStr} "
+                   f"({int(elapsedTime * 1000)} ms) @ {int(avgRowsPerSec)} rows per second.")
 
-    print(log_message)
+    print(logMessage)
 
 def createBatchFile(entityType, importConfig, tableName, fieldMappings, cursor):
-    input_file = importConfig['inputFile']
-    form_context_id = importConfig['formContextId']
-    user_id = importConfig['userId']
-    record_id_query = "SELECT MAX(LAST_ID) + 1 AS next_id FROM DYEXTN_ID_SEQ WHERE TABLE_NAME = 'RECORD_ID_SEQ'"
-    cursor.execute(record_id_query)
-    record_id = cursor.fetchone()['next_id']
+    inputFile = importConfig['inputFile']
+    formContextId = importConfig['formContextId']
+    userId = importConfig['userId']
+    recordIdQuery = "SELECT MAX(LAST_ID) + 1 AS next_id FROM DYEXTN_ID_SEQ WHERE TABLE_NAME = 'RECORD_ID_SEQ'"
+    cursor.execute(recordIdQuery)
+    recordId = cursor.fetchone()['next_id']
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    failed_records_filename = f'failed_records_{timestamp}.csv'
+    failedRecordsFilename = f'failed_records_{timestamp}.csv'
     fieldnames = None
 
-    total_records = 0
-    failed_records = []
-    batch_size = 100
-    processed_records = 0
+    totalRecords = 0
+    failedRecords = []
+    batchSize = 100
+    processedRecords = 0
 
-    failed_records_file = open(failed_records_filename, 'w', newline='')
-    failed_writer = None
+    failedRecordsFile = open(failedRecordsFilename, 'w', newline='')
+    failedWriter = None
 
-    with open(input_file, 'r') as csvfile:
+    with open(inputFile, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
         records = []
 
@@ -70,39 +68,39 @@ def createBatchFile(entityType, importConfig, tableName, fieldMappings, cursor):
             if fieldnames is None:
                 fieldnames = reader.fieldnames + ['OS_IMPORT_STATUS', 'OS_IMPORT_ERROR']
                 # Initialize the writer after knowing the fieldnames
-                failed_writer = csv.DictWriter(failed_records_file, fieldnames=fieldnames)
-                failed_writer.writeheader()
+                failedWriter = csv.DictWriter(failedRecordsFile, fieldnames=fieldnames)
+                failedWriter.writeheader()
 
-            total_records += 1
+            totalRecords += 1
             records.append(record)
             
-            if len(records) == batch_size:
-                processed_records += len(records)
-                writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, record_id, failed_writer, processed_records)
-                record_id += len(records)
+            if len(records) == batchSize:
+                processedRecords += len(records)
+                writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, processedRecords)
+                recordId += len(records)
                 records = []
 
         if records:
-            processed_records += len(records)
-            writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, record_id, failed_writer, processed_records)
+            processedRecords += len(records)
+            writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, processedRecords)
 
-    failed_records_file.close()
+    failedRecordsFile.close()
 
-def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, record_id, failed_writer, processed_records):
-    form_context_id = importConfig['formContextId']
-    user_id = importConfig['userId']
-    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open('batch.sql', 'w') as sql_file:  # Open the file in a context manager to ensure it's closed properly
+def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, processedRecords):
+    formContextId = importConfig['formContextId']
+    userId = importConfig['userId']
+    currentTime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open('batch.sql', 'w') as sqlFile:  # Open the file in a context manager to ensure it's closed properly
         for record in records:
             if entityType == 'Specimen':
                 query = f"select identifier from catissue_specimen where label = '{record['Specimen Label']}'"
-                error_message = f"Specimen Label {record['Specimen Label']} does not exist"
+                errorMessage = f"Specimen Label {record['Specimen Label']} does not exist"
             elif entityType == 'Participant':
                 query = f"select cpr.identifier from catissue_coll_prot_reg as cpr join catissue_collection_protocol as ccp on cpr.collection_protocol_id = ccp.identifier where ccp.short_title = '{record['Collection Protocol']}' and cpr.protocol_participant_id = '{record['PPID']}';"
-                error_message = f"PPID {record['PPID']} does not exist"
+                errorMessage = f"PPID {record['PPID']} does not exist"
             elif entityType == 'SpecimenCollectionGroup':
                 query = f"select identifier from catissue_specimen_coll_group where name = '{record['Name']}'"
-                error_message = f"Visit Name {record['Name']} does not exist"
+                errorMessage = f"Visit Name {record['Name']} does not exist"
             else:
                 continue
 
@@ -110,7 +108,7 @@ def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, 
             result = cursor.fetchone()
             if result:
                 identifier = result['identifier']
-                object_id = identifier
+                objectId = identifier
                 columns = []
                 values = []
                 for field, column in fieldMappings.items():
@@ -119,17 +117,17 @@ def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, 
                         values.append(f"'{record[field]}'" if record[field] else "NULL")
 
                 if columns and values:
-                    de_insert_query = f"INSERT INTO {tableName} (IDENTIFIER, {', '.join(columns)}) VALUES ({record_id}, {', '.join(values)});"
-                    sql_file.write(f"INSERT INTO catissue_form_record_entry (FORM_CTXT_ID, OBJECT_ID, RECORD_ID, UPDATED_BY, UPDATE_TIME, ACTIVITY_STATUS, FORM_STATUS, OLD_OBJECT_ID) VALUES ({form_context_id}, {object_id}, {record_id}, {user_id}, '{current_time}', 'ACTIVE', 'COMPLETE', NULL);\n")
-                    sql_file.write(de_insert_query + '\n')
-                    record_id += 1
+                    deInsertQuery = f"INSERT INTO {tableName} (IDENTIFIER, {', '.join(columns)}) VALUES ({recordId}, {', '.join(values)});"
+                    sqlFile.write(f"INSERT INTO catissue_form_record_entry (FORM_CTXT_ID, OBJECT_ID, RECORD_ID, UPDATED_BY, UPDATE_TIME, ACTIVITY_STATUS, FORM_STATUS, OLD_OBJECT_ID) VALUES ({formContextId}, {objectId}, {recordId}, {userId}, '{currentTime}', 'ACTIVE', 'COMPLETE', NULL);\n")
+                    sqlFile.write(deInsertQuery + '\n')
+                    recordId += 1
             else:
                 record['OS_IMPORT_STATUS'] = 'FAILED'
-                record['OS_IMPORT_ERROR'] = error_message
-                failed_writer.writerow(record)
+                record['OS_IMPORT_ERROR'] = errorMessage
+                failedWriter.writerow(record)
 
     
-    executeBatchFile(cursor, 'batch.sql', len(records), processed_records)
+    executeBatchFile(cursor, 'batch.sql', len(records), processedRecords)
 
 def connectToDb(mysqlConfig):
     try:
