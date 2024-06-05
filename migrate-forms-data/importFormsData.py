@@ -50,15 +50,17 @@ def createBatchFile(entityType, importConfig, tableName, fieldMappings, cursor):
     recordId = cursor.fetchone()['next_id']
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     failedRecordsFilename = f'failed_records_{timestamp}.csv'
+    succeededRecordsFilename = f'succeeded_records_{timestamp}.csv'
     fieldnames = None
 
     totalRecords = 0
-    failedRecords = []
     batchSize = 100
     processedRecords = 0
 
     failedRecordsFile = open(failedRecordsFilename, 'w', newline='')
+    succeededRecordsFile = open(succeededRecordsFilename, 'w', newline='')
     failedWriter = None
+    succeededWriter = None
 
     with open(inputFile, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -67,32 +69,35 @@ def createBatchFile(entityType, importConfig, tableName, fieldMappings, cursor):
         for record in reader:
             if fieldnames is None:
                 fieldnames = reader.fieldnames + ['OS_IMPORT_STATUS', 'OS_IMPORT_ERROR']
-                # Initialize the writer after knowing the fieldnames
+                # Initialize the writers after knowing the fieldnames
                 failedWriter = csv.DictWriter(failedRecordsFile, fieldnames=fieldnames)
+                succeededWriter = csv.DictWriter(succeededRecordsFile, fieldnames=fieldnames)
                 failedWriter.writeheader()
+                succeededWriter.writeheader()
 
             totalRecords += 1
             records.append(record)
             
             if len(records) == batchSize:
                 processedRecords += len(records)
-                writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, processedRecords)
+                writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, succeededWriter, processedRecords)
                 recordId += len(records)
                 records = []
 
         if records:
             processedRecords += len(records)
-            writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, processedRecords)
+            writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, succeededWriter, processedRecords)
 
     failedRecordsFile.close()
+    succeededRecordsFile.close()
 
-def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, processedRecords):
+def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, cursor, recordId, failedWriter, succeededWriter, processedRecords):
     formContextId = importConfig['formContextId']
     userId = importConfig['userId']
     currentTime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open('batch.sql', 'w') as sqlFile:  # Open the file in a context manager to ensure it's closed properly
         for record in records:
-            if entityType == 'Specimen':
+            if entityType == 'Specimen' or entityType == 'SpecimenEvent':
                 query = f"select identifier from catissue_specimen where label = '{record['Specimen Label']}'"
                 errorMessage = f"Specimen Label {record['Specimen Label']} does not exist"
             elif entityType == 'Participant':
@@ -121,12 +126,15 @@ def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, 
                     sqlFile.write(f"INSERT INTO catissue_form_record_entry (FORM_CTXT_ID, OBJECT_ID, RECORD_ID, UPDATED_BY, UPDATE_TIME, ACTIVITY_STATUS, FORM_STATUS, OLD_OBJECT_ID) VALUES ({formContextId}, {objectId}, {recordId}, {userId}, '{currentTime}', 'ACTIVE', 'COMPLETE', NULL);\n")
                     sqlFile.write(deInsertQuery + '\n')
                     recordId += 1
+
+                record['OS_IMPORT_STATUS'] = 'SUCCESS'
+                record['OS_IMPORT_ERROR'] = ''
+                succeededWriter.writerow(record)
             else:
                 record['OS_IMPORT_STATUS'] = 'FAILED'
                 record['OS_IMPORT_ERROR'] = errorMessage
                 failedWriter.writerow(record)
 
-    
     executeBatchFile(cursor, 'batch.sql', len(records), processedRecords)
 
 def connectToDb(mysqlConfig):
