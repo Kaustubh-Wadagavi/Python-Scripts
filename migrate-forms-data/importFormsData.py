@@ -104,8 +104,8 @@ def writeBatchFile(records, entityType, importConfig, tableName, fieldMappings, 
                 query = f"select cpr.identifier from catissue_coll_prot_reg as cpr join catissue_collection_protocol as ccp on cpr.collection_protocol_id = ccp.identifier where ccp.short_title = '{record['Collection Protocol']}' and cpr.protocol_participant_id = '{record['PPID']}';"
                 errorMessage = f"PPID {record['PPID']} does not exist"
             elif entityType == 'SpecimenCollectionGroup':
-                query = f"select identifier from catissue_specimen_coll_group where name = '{record['Name']}'"
-                errorMessage = f"Visit Name {record['Name']} does not exist"
+                query = f"select identifier from catissue_specimen_coll_group where name = '{record['Visit Name']}'"
+                errorMessage = f"Visit Name {record['Visit Name']} does not exist"
             else:
                 continue
 
