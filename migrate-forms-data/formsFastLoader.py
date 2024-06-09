@@ -13,39 +13,53 @@ def updateDeIdSeq(cursor):
         if maxRecordId is not None:
             updateQuery = "UPDATE DYEXTN_ID_SEQ SET LAST_ID = %s WHERE TABLE_NAME = 'RECORD_ID_SEQ'"
             cursor.execute(updateQuery, (maxRecordId,))
-            print(f"Updated the last record identifier of DYEXTN_ID_SEQ: {maxRecordId}")
+            print("\n=================================================================")
+            print("\nUpdating last record identifier of DYEXTN_ID_SEQ: ", end="")
+            sys.stdout.flush()
+            for _ in range(10):
+                print(".", end="", flush=True)
+                time.sleep(0.5)
+            print("\nUPDATED LAST_RECORD_ID FOR TABLE DYEXTN_ID_SEQ:", maxRecordId)
+            print("\n=================================================================")
         else:
             print("No records found in catissue_form_record_entry table.")
 
     except mysql.connector.Error as err:
         print(f"Error: {err}")
 
-def insertRecords(sqlFile, cursor):
+def countFailedRecords(filename):
+    try:
+        with open(filename, 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            failedRecordsCount = sum(1 for row in reader)
+        return failedRecordsCount
+    except FileNotFoundError:
+        return 0
+
+def insertRecords(sqlCommands, cursor, processedRecords, totalRecords, failedRecordsFilename):
     startTime = time.time()
-    processedRecords = 0
     passed = 0
-    totalRecords = 0
 
-    with open(sqlFile, "r") as batch_file:
-        batch_queries = batch_file.read().split(';')
-        allRecordsProcessed = True
+    for command in sqlCommands:
+        try:
+            cursor.execute(command)
+            passed += 1
+        except Exception as e:
+            print(f"Error executing SQL command: {e}")
+            failedRecordsCount += 1
 
-        for query in batch_queries:
-            query = query.strip()  # Remove leading and trailing whitespace
-            if query:  # Check if the query is not empty
-                cursor.execute(query)
-                passed += 1
-                processedRecords += 1
-
-    totalRecords += len(batch_queries)
-
+    failedRecordsCount = countFailedRecords(failedRecordsFilename)
+    totalRecords += failedRecordsCount
+    processedRecords += totalRecords
+    totalPassed = processedRecords - failedRecordsCount
     endTime = time.time()
     elapsedTime = endTime - startTime
     elapsedStr = str(timedelta(seconds=elapsedTime))
     avgRowsPerSec = passed / elapsedTime
 
-    logMessage = (f"Processed {processedRecords} rows (passed = {passed}, failed = {totalRecords - passed}) in {elapsedStr} "
+    logMessage = (f"Processed {processedRecords} rows (passed = {totalPassed}, failed = {failedRecordsCount}) in {elapsedStr} "
                   f"({int(elapsedTime * 1000)} ms) @ {int(avgRowsPerSec)} rows per second.")
+
     print(logMessage)
 
 def getRecordId(cursor):
@@ -59,57 +73,56 @@ def getSqlFiles(cursor, formDbDetailsFile, successFile, formContextId, userId):
         formDetailsReader = csv.reader(csvfile)
         formDetails = list(formDetailsReader)
 
-    deTableName = formDetails[1][2]  # Extracting the table name correctly
-    fieldMappings = {row[0]: {'column': row[1], 'controlType': row[2]} for row in formDetails[3:]}  # Extracting field mappings
+    deTableName = formDetails[1][2]
+    fieldMappings = {row[0]: {'column': row[1], 'controlType': row[2]} for row in formDetails[3:]}
 
     recordId = getRecordId(cursor)
     currentTime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    batchSize = 100
+    totalRecords = 0
 
     with open(successFile, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
-        batch_count = 0
-        sqlFile = "batch.sql"
-        
-        with open(sqlFile, 'w') as sqlfile:
-            for record in reader:
-                objectId = record['Object ID']
-                columns = []
-                values = []
-                for field, mapping in fieldMappings.items():
-                    if field in record:
-                        column = mapping['column']
-                        value = record[field]
-                        # Check if the control type is PvControl
-                        if 'com.krishagni.catissueplus.core.de.ui.PvControl' in mapping['controlType']:
-                            if value:
-                                columns.append(column)
-                                values.append(value)  # No single quotes for PV control type
-                            else:
-                                columns.append(column)
-                                values.append('NULL')  # Insert NULL if value is empty
+        recordsBatch = []
+
+        for record in reader:
+            objectId = record['Object ID']
+            columns = []
+            values = []
+
+            for field, mapping in fieldMappings.items():
+                if field in record:
+                    column = mapping['column']
+                    value = record[field]
+
+                    if 'com.krishagni.catissueplus.core.de.ui.PvControl' in mapping['controlType']:
+                        columns.append(column)
+                        if value:
+                            values.append(value)
                         else:
-                            if value:
-                                columns.append(column)
-                                values.append(f"'{value}'")  # Add single quotes for other types
-                            else:
-                                columns.append(column)
-                                values.append('NULL')  # Insert NULL if value is empty
+                            values.append('NULL')
+                    else:
+                        columns.append(column)
+                        if value:
+                            values.append(f"'{value}'")
+                        else:
+                            values.append('NULL')
 
-                if columns and values:
-                    deInsertQuery = f"INSERT INTO {deTableName} (IDENTIFIER, {', '.join(columns)}) VALUES ({recordId}, {', '.join(values)});"
-                    sqlfile.write(f"INSERT INTO catissue_form_record_entry (FORM_CTXT_ID, OBJECT_ID, RECORD_ID, UPDATED_BY, UPDATE_TIME, ACTIVITY_STATUS, FORM_STATUS, OLD_OBJECT_ID) VALUES ({formContextId}, {objectId}, {recordId}, {userId}, '{currentTime}', 'ACTIVE', 'COMPLETE', NULL);\n")
-                    sqlfile.write(deInsertQuery + '\n')
-                    recordId += 1
-                    if recordId % 100 == 0:
-                        batch_count += 1
-                        yield sqlFile
-                        sqlFile = f"batch_{batch_count}.sql"
-                        sqlfile.close()
-                        sqlfile = open(sqlFile, 'w')
+            if columns and values:
+                columns_str = ", ".join(columns)
+                values_str = ", ".join(values)
+                deInsertQuery = f"INSERT INTO {deTableName} (IDENTIFIER, {columns_str}) VALUES ({recordId}, {values_str});"
+                recordsBatch.append(f"INSERT INTO catissue_form_record_entry (FORM_CTXT_ID, OBJECT_ID, RECORD_ID, UPDATED_BY, UPDATE_TIME, ACTIVITY_STATUS, FORM_STATUS, OLD_OBJECT_ID) VALUES ({formContextId}, {objectId}, {recordId}, {userId}, '{currentTime}', 'ACTIVE', 'COMPLETE', NULL);")
+                recordsBatch.append(deInsertQuery)
+                recordId += 1
+                totalRecords += 1
 
-    # If there are remaining records, yield the last batch file
-    if recordId % 100 != 0:
-        yield sqlFile    
+                if len(recordsBatch) == 2 * batchSize:
+                    yield recordsBatch, totalRecords
+                    recordsBatch = []
+
+        if recordsBatch:
+            yield recordsBatch, totalRecords
 
 def queryDatabase(cursor, query, params):
     cursor.execute(query, params)
@@ -129,8 +142,8 @@ def convertCsv(tableName, fieldMappings, entityType, inputFile, conn):
     with open(inputFile, 'r') as csvfile:
         reader = csv.DictReader(csvfile)
         headers = reader.fieldnames
-        successHeaders = headers + ['Object ID']
-        failedHeaders = headers + ['Error']
+        successHeaders = headers + ['Object ID', 'OS_IMPORT_STATUS', 'OS_IMPORT_ERROR']
+        failedHeaders = headers + ['OS_IMPORT_STATUS', 'OS_IMPORT_ERROR']
 
         for record in reader:
             objectId = None
@@ -159,10 +172,13 @@ def convertCsv(tableName, fieldMappings, entityType, inputFile, conn):
 
             if objectId:
                 record['Object ID'] = objectId
+                record['OS_IMPORT_STATUS'] = 'SUCCESS'
+                record['OS_IMPORT_ERROR'] = ''
                 successRecords.append(record)
             else:
-                failedRecord = {**record, 'Error': errorMessage}
-                failedRecords.append(failedRecord)
+                record['OS_IMPORT_STATUS'] = 'FAILED'
+                record['OS_IMPORT_ERROR'] = errorMessage
+                failedRecords.append(record)
 
     with open(failedFile, 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=failedHeaders)
@@ -184,16 +200,19 @@ def convertCsv(tableName, fieldMappings, entityType, inputFile, conn):
             for col in pvColumns:
                 pvValue = record.get(col, None)
                 if pvValue is None or pvValue == "":
-                    continue  # Keep the row in the succeeded file if PV value is empty
+                    continue
                 pvId = pvMap.get(pvValue)
                 if pvId:
                     record[col] = pvId
                 else:
                     valid = False
-                    record['Error'] = f"PV value {record[col]} doesn't exist"
-                    newFailedRecords.append({**record, 'Error': f"PV value {record[col]} doesn't exist"})
+                    record['OS_IMPORT_STATUS'] = 'FAILED'
+                    record['OS_IMPORT_ERROR'] = f"PV value {record[col]} doesn't exist"
+                    newFailedRecords.append(record)
                     break
             if valid:
+                record['OS_IMPORT_STATUS'] = 'SUCCESS'
+                record['OS_IMPORT_ERROR'] = ''
                 newSuccessRecords.append(record)
 
         with open(successFile, 'w', newline='') as csvfile:
@@ -254,7 +273,6 @@ def getConfigDetails(configFile):
 
     return mysqlConfig, importConfig
 
-
 def main():
     if len(sys.argv) != 2:
         print("Usage: python3 importFormsData.py <config_file>")
@@ -266,14 +284,14 @@ def main():
     conn = connectToDb(mysqlConfig)
     if conn is None:
         return
-    cursor = conn.cursor(dictionary=True)
-    successFile,failedFile = convertCsv(tableName, fieldMappings, importConfig['entityType'], importConfig['inputFile'], conn)
-    if successFile:
-        print(fieldMappings)
     
-    print(importConfig['formDbDetailsFile'])
-    for sqlFile in getSqlFiles(cursor, importConfig['formDbDetailsFile'], successFile, importConfig['formContextId'], importConfig['userId']):
-        insertRecords(sqlFile, cursor)
+    cursor = conn.cursor(dictionary=True)
+    successFile, failedFile = convertCsv(tableName, fieldMappings, importConfig['entityType'], importConfig['inputFile'], conn)
+    
+    processedRecords = 0
+    if successFile:
+        for records, totalRecords in getSqlFiles(cursor, importConfig['formDbDetailsFile'], successFile, importConfig['formContextId'], importConfig['userId']):
+            insertRecords(records, cursor, processedRecords, totalRecords, failedFile)
 
     updateDeIdSeq(cursor)
     conn.commit()
