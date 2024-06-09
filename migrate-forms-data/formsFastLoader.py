@@ -124,7 +124,7 @@ def getSqlFiles(cursor, formDbDetailsFile, successFile, formContextId, userId):
         if recordsBatch:
             yield recordsBatch, totalRecords
 
-def queryDatabase(cursor, query, params):
+def getObjectId(cursor, query, params):
     cursor.execute(query, params)
     result = cursor.fetchone()
     return result['identifier'] if result else None
@@ -151,19 +151,19 @@ def convertCsv(tableName, fieldMappings, entityType, inputFile, conn):
 
             if entityType in ['Specimen', 'SpecimenEvent']:
                 query = "SELECT identifier FROM catissue_specimen WHERE label = %s"
-                objectId = queryDatabase(cursor, query, (record['Specimen Label'],))
+                objectId = getObjectId(cursor, query, (record['Specimen Label'],))
                 errorMessage = f"Specimen Label {record['Specimen Label']} does not exist"
 
             elif entityType == 'Participant':
                 query = """SELECT cpr.identifier FROM catissue_coll_prot_reg AS cpr
                            JOIN catissue_collection_protocol AS ccp ON cpr.collection_protocol_id = ccp.identifier
                            WHERE ccp.short_title = %s AND cpr.protocol_participant_id = %s"""
-                objectId = queryDatabase(cursor, query, (record['Collection Protocol'], record['PPID']))
+                objectId = getObjectId(cursor, query, (record['Collection Protocol'], record['PPID']))
                 errorMessage = f"PPID {record['PPID']} does not exist"
 
             elif entityType == 'SpecimenCollectionGroup':
                 query = "SELECT identifier FROM catissue_specimen_coll_group WHERE name = %s"
-                objectId = queryDatabase(cursor, query, (record['Visit Name'],))
+                objectId = getObjectId(cursor, query, (record['Visit Name'],))
                 errorMessage = f"Visit Name {record['Visit Name']} does not exist"
 
             else:
