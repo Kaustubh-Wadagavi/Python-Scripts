@@ -40,14 +40,14 @@ def sendEmail(firstName, lastName, url, senderEmail, receiverEmail, emailPasswor
     except Exception as e:
         print(f"Failed to send email: {e}")
 
-def checkUserCreationDate(users, url, senderEmail, receiverEmail, emailPassword):
-    today = datetime.now(timezone.utc).date()
+def checkUserCreationDate(users, url, token, senderEmail, receiverEmail, emailPassword):
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
     for user in users:
         if 'creationDate' in user:
             createdDate = datetime.fromtimestamp(user['creationDate'] / 1000, timezone.utc).date()
-            if createdDate == today:
+            if createdDate == yesterday:
                 sendEmail(user['firstName'], user['lastName'], url, senderEmail, receiverEmail, emailPassword)
-                print(f"User created today: {user['firstName']} {user['lastName']}")
+                print(f"User created yesterday: {user['firstName']} {user['lastName']}")
         else:
             continue
 
@@ -61,7 +61,7 @@ def getUsers(url, token):
             users = response.json()
             if not users:
                 break
-            checkUserCreationDate(users, url, config['senderEmail'], config['receiverEmail'], config['emailPassword'])
+            checkUserCreationDate(users, url, token, config['senderEmail'], config['receiverEmail'], config['emailPassword'])
             start += 100
             max_results += 100
         else:
