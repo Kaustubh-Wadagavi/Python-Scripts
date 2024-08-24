@@ -26,7 +26,7 @@ def sendEmail(subject, body, senderEmail, receiverEmail, emailPassword):
     except Exception as e:
         print(f"Failed to send email: {e}")
 
-def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailPassword, url):
+def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailPassword, url=None):
     yesterday = datetime.now() - timedelta(1)
     formatted_date = yesterday.strftime('%Y-%m-%d')
     current_date = datetime.now().strftime('%Y-%m-%d')
@@ -40,7 +40,7 @@ def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailP
         <html>
             <body>
                 <p>Hello,<br><br>
-                   An error occurred while running the security audit script. Please visit to the below server to check details.<br><br>
+                   An error occurred while running the security audit script. Please visit the below server to check details.<br><br>
                    <strong>Server URL:</strong> {server_url}<br>
                    <strong>Error Message:</strong> {error_message}<br><br>
                    Thanks.
@@ -51,7 +51,7 @@ def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailP
     elif emailType == "newUser":
         subject = f"New Users Created on {formatted_date} - Server: {url}"
         table_rows = "".join([
-            f"<tr><td>{user['firstName']}</td><td>{user['lastName']}</td><td>{user['emailAddress']}</td><td><a href='{details['url']}/ui-app/#/users/{user['id']}/detail/overview'>User Details</a></td></tr>"
+            f"<tr><td>{user['firstName']}</td><td>{user['lastName']}</td><td>{user['emailAddress']}</td><td><a href='{url}/ui-app/#/users/{user['id']}/detail/overview'>User Details</a></td></tr>"
             for user in details['users']
         ])
         body = f"""
@@ -70,9 +70,8 @@ def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailP
         """
     sendEmail(subject, body, senderEmail, receiverEmail, emailPassword)
 
-def checkUserCreationDate(users, url, senderEmail, receiverEmail, emailPassword):
+def checkUserCreationDate(users, new_users):
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
-    new_users = []
 
     for user in users:
         if 'creationDate' in user and 'id' in user:
@@ -84,20 +83,13 @@ def checkUserCreationDate(users, url, senderEmail, receiverEmail, emailPassword)
                     "emailAddress" : user['emailAddress'],
                     "id": user['id']
                 })
-            else:
-                continue
-
-    if new_users:
-        details = {
-            "users": new_users,
-            "url": url
-        }
-        sendNotificationEmail("newUser", details, senderEmail, receiverEmail, emailPassword, url)
 
 def getUsers(url, token, senderEmail, receiverEmail, emailPassword):
     headers = {'X-OS-API-TOKEN': token}
     start = 0
     maxResults = 100
+    new_users = []
+
     while True:
         try:
             response = requests.get(f"{url}rest/ng/users?start={start}&max={maxResults}", headers=headers)
@@ -105,15 +97,22 @@ def getUsers(url, token, senderEmail, receiverEmail, emailPassword):
             users = response.json()
             if not users:
                 break
-            checkUserCreationDate(users, url, senderEmail, receiverEmail, emailPassword)
+            checkUserCreationDate(users, new_users)
             start += 100
         except requests.exceptions.RequestException as e:
             sendNotificationEmail("error", {
-                'serverUrl': url,  # Using URL from the config
+                'serverUrl': url,
                 'url': url,
                 'message': str(e)
             }, senderEmail, receiverEmail, emailPassword)
-            break
+            return  # Exit the function on error
+
+    if new_users:
+        details = {
+            "users": new_users,
+            "url": url
+        }
+        sendNotificationEmail("newUser", details, senderEmail, receiverEmail, emailPassword, url)
 
 def getToken(loginName, password, url, senderEmail, receiverEmail, emailPassword):
     payload = {
@@ -131,7 +130,7 @@ def getToken(loginName, password, url, senderEmail, receiverEmail, emailPassword
             'serverUrl': url,
             'url': url,
             'message': str(e)
-        }, senderEmail, receiverEmail, emailPassword, url)
+        }, senderEmail, receiverEmail, emailPassword)
         return None
 
 def readConfig(configFile):
