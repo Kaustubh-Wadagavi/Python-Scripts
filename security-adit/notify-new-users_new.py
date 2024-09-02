@@ -35,7 +35,7 @@ def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailP
         server_url = details.get('serverUrl', 'Unknown Server')
         error_url = details.get('url', 'No URL provided')
         error_message = details.get('message', 'No error message provided')
-        subject = f"User Audit: Newly Created User Error Notification - {current_date} - Server: {server_url}"
+        subject = f"Security audit Error Notification - {current_date} - Server: {server_url}"
         body = f"""
         <html>
             <body>
@@ -49,7 +49,7 @@ def sendNotificationEmail(emailType, details, senderEmail, receiverEmail, emailP
            </html>
         """
     elif emailType == "newUser":
-        subject = f"User Audit: New Users Created on {formatted_date} - Server: {url}"
+        subject = f"New Users Created on {formatted_date} - Server: {url}"
         table_rows = "".join([
             f"<tr><td>{user['firstName']}</td><td>{user['lastName']}</td><td>{user['emailAddress']}</td><td><a href='{url}/ui-app/#/users/{user['id']}/detail/overview'>User Details</a></td></tr>"
             for user in details['users']

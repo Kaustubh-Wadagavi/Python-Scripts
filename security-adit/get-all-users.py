@@ -46,7 +46,7 @@ def getUsers(url, token):
             start += 100
         except requests.exceptions.RequestException as e:
             sendNotificationEmail(
-                subject=f"Error Fetching Users - {url} - {datetime.now().strftime('%Y-%m-%d')}",
+                subject=f"User Audit: List of All Users for Error Notification - {url} - {datetime.now().strftime('%Y-%m-%d')}",
                 body=f"""
                 <html>
                     <body>
@@ -120,7 +120,7 @@ if __name__ == "__main__":
             token = response.json().get('token')
         except requests.exceptions.RequestException as e:
             sendNotificationEmail(
-                subject=f"Error Obtaining Token - {config['url']} - {datetime.now().strftime('%Y-%m-%d')}",
+                    subject=f"User Audit: List of All Users for: Error Obtaining Token - {config['url']} - {datetime.now().strftime('%Y-%m-%d')}",
                 body=f"""
                 <html>
                     <body>
@@ -143,13 +143,13 @@ if __name__ == "__main__":
             users = getUsers(config['url'], token)
             if users is not None:
                 body = createUserListEmailBody(users, config['url'])
-                subject = f"List of All Users - {config['url']} - {datetime.now().strftime('%Y-%m-%d')}"
+                subject = f"User Audit: List of All Users for - {config['url']} - {datetime.now().strftime('%Y-%m-%d')}"
                 sendNotificationEmail(subject, body, config['senderEmail'], config['receiverEmail'], config['emailPassword'])
             else:
                 print("Failed to fetch user list.")
     except Exception as e:
         sendNotificationEmail(
-            subject=f"Critical Error - {config['url']} - {datetime.now().strftime('%Y-%m-%d')}",
+            subject=f"User Audit: List of All Users Critical for Error - {config['url']} - {datetime.now().strftime('%Y-%m-%d')}",
             body=f"""
             <html>
                 <body>
