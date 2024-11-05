@@ -140,8 +140,7 @@ def main():
                         <body>
                         <p>Hello,</p>
                         <p>
-                            Please find below attached report of specimen barcodes, those are not present in OpenSpecimen.<br>
-                            The report was generated on {previous_day_str}.
+                           Attached is the report of specimens stored in Strata but are not present in OpenSpecimen.
                         </p>
                         <p>Thanks.</p>
                         </body>
