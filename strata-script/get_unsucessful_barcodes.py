@@ -134,7 +134,7 @@ def main():
             previous_day = datetime.now() - timedelta(days=1)
             previous_day_str = previous_day.strftime("%Y-%m-%d")
 
-            subject = "Unsuccessful Barcodes Report"
+            subject = f"OpenSpecimen/Strata: Missing barcodes report for {previous_day_str}"
             body = f"""
                     <html>
                         <body>
