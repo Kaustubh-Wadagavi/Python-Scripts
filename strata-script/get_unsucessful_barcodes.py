@@ -132,7 +132,7 @@ def main():
             print(f"Data has been written to {output_file}")
             
             previous_day = datetime.now() - timedelta(days=1)
-            previous_day_str = previous_day.strftime("%Y-%m-%d")
+            previous_day_str = previous_day.strftime("%m/%d/%Y")
 
             subject = f"OpenSpecimen/Strata: Missing barcodes report for {previous_day_str}"
             body = f"""
