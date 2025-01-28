@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 import configparser
 import sys
+from datetime import datetime
 
 def update_specimens_in_batches(cursor, conn, min_id, max_id, batch_size):
     """Update barcode with label in batches."""
@@ -9,26 +10,29 @@ def update_specimens_in_batches(cursor, conn, min_id, max_id, batch_size):
 
     while current_min <= max_id:
         current_max = current_min + batch_size - 1
-        
+        start_time = datetime.now()
+
         query = (
-            "UPDATE catissue_specimen s "
-            "JOIN os_cp_group_cps cpg ON cpg.cp_id = s.collection_protocol_id "
-            "SET s.BARCODE = s.LABEL "
-            "WHERE cpg.group_id = 2 AND s.IDENTIFIER BETWEEN %s AND %s;"
+            "UPDATE catissue_specimen spec "
+            "JOIN os_cp_group_cps cpg ON cpg.cp_id = spec.collection_protocol_id "
+            "SET spec.BARCODE = spec.LABEL "
+            "WHERE cpg.group_id = 2 AND spec.IDENTIFIER BETWEEN %s AND %s;"
         )
-        
+
         cursor.execute(query, (current_min, current_max))
         conn.commit()
-        
-        print(f"Updated rows for ID range: {current_min} - {current_max}")
+
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        print(f"[{start_time}] Updated rows for ID range: {current_min} - {current_max} in {duration:.2f} seconds")
         current_min += batch_size
 
 def get_min_max_specimen_ids(cursor):
     """Retrieve the minimum and maximum specimen IDs for cpg.group_id = 2."""
     query = (
-        "SELECT MIN(s.IDENTIFIER) AS min_id, MAX(s.IDENTIFIER) AS max_id "
-        "FROM catissue_specimen s "
-        "JOIN os_cp_group_cps cpg ON cpg.cp_id = s.collection_protocol_id "
+        "SELECT MIN(spec.IDENTIFIER) AS min_id, MAX(spec.IDENTIFIER) AS max_id "
+        "FROM catissue_specimen spec "
+        "JOIN os_cp_group_cps cpg ON cpg.cp_id = spec.collection_protocol_id "
         "WHERE cpg.group_id = 2;"
     )
     cursor.execute(query)
@@ -54,7 +58,7 @@ def main():
         'database': config['mysql']['dbName']
     }
 
-    batch_size = 10000
+    batch_size = 100
 
     try:
         # Connect to the database
