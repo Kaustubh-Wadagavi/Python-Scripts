@@ -81,7 +81,7 @@ def main():
         'database': config['mysql']['dbName']
     }
 
-    batch_size = 100
+    batch_size = 10000
 
     try:
         # Connect to the database
