@@ -5,26 +5,44 @@ import sys
 from datetime import datetime
 
 def update_specimens_in_batches(cursor, conn, min_id, max_id, batch_size):
-    """Update barcode with label in batches."""
+    """Update barcode with label in batches while skipping failed updates."""
     current_min = min_id
 
     while current_min <= max_id:
         current_max = current_min + batch_size - 1
         start_time = datetime.now()
 
-        query = (
-            "UPDATE catissue_specimen spec "
+        # Fetch rows that need to be updated
+        fetch_query = (
+            "SELECT spec.IDENTIFIER, spec.LABEL FROM catissue_specimen spec "
             "JOIN os_cp_group_cps cpg ON cpg.cp_id = spec.collection_protocol_id "
-            "SET spec.BARCODE = spec.LABEL "
-            "WHERE cpg.group_id = 2 AND spec.IDENTIFIER BETWEEN %s AND %s;"
+            "WHERE cpg.group_id = 2 AND spec.BARCODE IS NULL "
+            "AND spec.IDENTIFIER BETWEEN %s AND %s;"
         )
 
-        cursor.execute(query, (current_min, current_max))
-        conn.commit()
+        cursor.execute(fetch_query, (current_min, current_max))
+        records = cursor.fetchall()
+
+        updated_count = 0
+        for record in records:
+            specimen_id = record["IDENTIFIER"]
+            label = record["LABEL"]
+
+            try:
+                update_query = (
+                    "UPDATE catissue_specimen SET BARCODE = %s WHERE IDENTIFIER = %s;"
+                )
+                cursor.execute(update_query, (label, specimen_id))
+                conn.commit()
+                updated_count += 1
+            except Error as e:
+                print(f"⚠️ Error updating specimen ID {specimen_id}: {e}")
+                # Continue to next record
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        print(f"[{start_time}] Updated rows for ID range: {current_min} - {current_max} in {duration:.2f} seconds")
+        print(f"[{start_time}] Updated {updated_count} rows for ID range: {current_min} - {current_max} in {duration:.2f} seconds")
+        
         current_min += batch_size
 
 def get_min_max_specimen_ids(cursor):
@@ -33,11 +51,11 @@ def get_min_max_specimen_ids(cursor):
         "SELECT MIN(spec.IDENTIFIER) AS min_id, MAX(spec.IDENTIFIER) AS max_id "
         "FROM catissue_specimen spec "
         "JOIN os_cp_group_cps cpg ON cpg.cp_id = spec.collection_protocol_id "
-        "WHERE cpg.group_id = 2;"
+        "WHERE cpg.group_id = 2 AND spec.BARCODE is NULL;"
     )
     cursor.execute(query)
     result = cursor.fetchone()
-    return result['min_id'], result['max_id']
+    return result["min_id"], result["max_id"]
 
 def main():
     """Main function to perform the update in batches."""
@@ -72,17 +90,17 @@ def main():
         # Update specimens in batches
         update_specimens_in_batches(cursor, conn, min_id, max_id, batch_size)
 
-        print("Update process completed.")
+        print("✅ Update process completed.")
 
     except Error as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
 
     finally:
         # Close the connection
         if conn.is_connected():
             cursor.close()
             conn.close()
-            print("MySQL connection closed.")
+            print("🔌 MySQL connection closed.")
 
 if __name__ == "__main__":
     main()
