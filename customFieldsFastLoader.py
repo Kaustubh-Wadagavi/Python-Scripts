@@ -23,8 +23,20 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
 
     chunksize = 100
     chunk_id = 100
-    for chunk in pd.read_csv(input_file, chunksize=chunksize, dtype=str, low_memory=True, quotechar='"', escapechar='\\'):
-        logging.info(f'Processing chunk {chunk_id}.')
+
+    required_columns = ["CP Short Title", "Specimen Label", "IUGB Specimen Custom Fields#OnCore Collection Container"]
+
+    for chunk in pd.read_csv(input_file, 
+                         chunksize=chunksize, 
+                         dtype=str, 
+                         usecols=required_columns,  # Read only required columns
+                         low_memory=True, 
+                         quotechar='"', 
+                         escapechar='\\'):
+        # Filter out rows where "IUGB Specimen Custom Fields#OnCore Collection Container" is null
+        chunk = chunk.dropna(subset=["IUGB Specimen Custom Fields#OnCore Collection Container"])
+    
+        logging.info(f'Processing chunk {chunk_id}, remaining records: {len(chunk)}')
 
         # Remove unwanted columns and replace NaN values with empty strings
         custom_form_data = chunk.fillna('')
@@ -44,10 +56,7 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
         except mysql.connector.Error as err:
             logging.error(f"MySQL error while retrieving specimen ids and labels: {err}")
             sys.exit(1)
-        #print(formatted_spmn_labels)
-        #print(specimen_ids_and_label)
-        # Check if all 100 specimens ids are retrived or not
-        logging.debug(f"Specimen IDs and labels: {specimen_ids_and_label}")
+        
         if len(specimen_ids_and_label) != 100:
             missing_spmn_label = list(set(spmn_labels) - {spmn_info['label'] for spmn_info in specimen_ids_and_label})
             failed_report = pd.DataFrame(columns=['Specimen Label'])
@@ -70,7 +79,6 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
             cursor.execute(retrive_max_record_id)
             max_record_id = cursor.fetchall()
             max_record_id = max_record_id[0]['max(record_id)']
-            #print(max_record_id)
             logging.info(f"Retrieved max record id: {max_record_id}.")
         except mysql.connector.Error as err:
             logging.error(f"MySQL error while retrieving max record id: {err}")
@@ -78,7 +86,6 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
 
         # Generate new records ids
         new_record_ids = [max_record_id + i for i in range(1,len(specimen_ids_and_label)+1)]
-        #print(new_record_ids)
 
         # Adding Identifier, Specimen label, and newly generated record id in a new dataframe. 
         # This dataframe is later used to insert data to catissue_form_record_entry table
@@ -107,7 +114,6 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
             lambda container: next((key for key, value in pv_map.items() if value == container), None)
         )
 
-        print(custom_form_data)
         # Prepare dataframe to insert data to catissue_form_record_entry
         catissue_form_record_entry = pd.DataFrame(data = {                                            # Replace with form association id
             "UPDATED_BY": [2] * len(specimen_ids_and_label_record_id),                                                # Replace with form user_id
@@ -126,7 +132,6 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
         )
 
         insert_data_to_form_record_entry = f"INSERT INTO catissue_form_record_entry ({column_for_form_record_entry}) VALUES\n{values_for_form_record_entry};"
-        print(insert_data_to_form_record_entry)
 
         columns_for_de = ", ".join(["IDENTIFIER", "DE_A_15"])
 
@@ -135,12 +140,8 @@ def insert_records(cursor, conn, input_file, de_table_name, pv_map, form_context
         )
 
         de_insert_query = f"INSERT INTO {de_table_name} ({columns_for_de}) VALUES\n{column_for_de_data_entry};"
-        print(column_for_de_data_entry)
-
-        print(de_insert_query)
 
         reset_record_id_seq = f"UPDATE dyextn_id_seq SET LAST_ID = {max_record_id + len(specimen_ids_and_label_record_id)} WHERE TABLE_NAME = 'RECORD_ID_SEQ';"
-        print(reset_record_id_seq)
 
         # Insert data in tables
         try:
