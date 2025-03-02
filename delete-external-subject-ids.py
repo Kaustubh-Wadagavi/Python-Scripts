@@ -27,7 +27,7 @@ def delete_entries(cursor, conn):
             if not ids:
                 break  # No more records to delete
             
-            delete_query = "DELETE FROM os_spmn_external_ids WHERE id IN (%s)"
+            delete_query = "DELETE FROM os_spmn_external_ids WHERE identifier IN (%s)"
             id_list = ','.join(str(row[0]) for row in ids)
             cursor.execute(delete_query % id_list)
             conn.commit()
