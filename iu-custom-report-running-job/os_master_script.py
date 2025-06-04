@@ -7,23 +7,20 @@ import os
 import logging
 from datetime import datetime
 import configparser
+import re
 
-# Constants
-LAST_RUN_ID_FILE = '.last_run_id.txt'
-LOG_FILE = 'report_runner.log'
-
-# Truncate log on every restart
-with open(LOG_FILE, 'w') as f:
+# Truncate log file on every restart
+with open('report_runner.log', 'w') as f:
     f.truncate()
 
 # Setup logging
 logging.basicConfig(
-    filename=LOG_FILE,
+    filename='report_runner.log',
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# Read DB config
+# Read DB config from a config file
 def load_db_config(config_path='db_config.ini'):
     config = configparser.ConfigParser()
     config.read(config_path)
@@ -31,7 +28,7 @@ def load_db_config(config_path='db_config.ini'):
 
 config = load_db_config()
 
-# MySQL connection
+# Connect to MySQL
 def get_connection():
     return mysql.connector.connect(
         host=config['host'],
@@ -40,32 +37,22 @@ def get_connection():
         database=config['database']
     )
 
-# Load last run_id from file
-def get_last_run_id():
-    if os.path.exists(LAST_RUN_ID_FILE):
-        with open(LAST_RUN_ID_FILE, 'r') as f:
-            try:
-                return int(f.read().strip())
-            except ValueError:
-                return 0
-    return 0
-
-# Save last run_id to file
-def set_last_run_id(run_id):
-    with open(LAST_RUN_ID_FILE, 'w') as f:
-        f.write(str(run_id))
-
-last_run_id = get_last_run_id()
+# Extract only the last error line if possible
+def extract_last_error_line(output):
+    lines = output.strip().splitlines()
+    # Look for last error line, fallback to last non-empty line
+    for line in reversed(lines):
+        if re.search(r'(?i)error|exception|traceback', line):
+            return line.strip()
+    return lines[-1].strip() if lines else 'Unknown error'
 
 while True:
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("""
-            SELECT id, script_id FROM os_custom_reports_on_demand_runs 
-            WHERE id > %s ORDER BY id ASC
-        """, (last_run_id,))
+        # Select only those where job_end_time is NULL (not yet processed)
+        cursor.execute("SELECT id, script_id FROM os_custom_reports_on_demand_runs WHERE job_end_time IS NULL ORDER BY id ASC")
         runs = cursor.fetchall()
 
         for run in runs:
@@ -73,35 +60,61 @@ while True:
             script_id = run['script_id']
 
             # Get script and config paths
-            cursor.execute("""
-                SELECT file_path, config_file_path FROM os_custom_reports 
-                WHERE id = %s
-            """, (script_id,))
+            cursor.execute("SELECT file_path, config_file_path FROM os_custom_reports WHERE id = %s", (script_id,))
             report = cursor.fetchone()
 
             if not report:
-                logging.warning(f"No report found for script_id {script_id}")
+                msg = f"No script found for script_id {script_id} in table os_custom_reports."
+                logging.error(msg)
+                cursor.execute("UPDATE os_custom_reports_on_demand_runs SET job_end_time = NOW(), job_status = %s, error_message = %s WHERE id = %s",
+                               ('FAILED', msg, run_id))
+                conn.commit()
                 continue
 
             file_path = report['file_path']
             config_path = report['config_file_path']
 
             if not os.path.exists(file_path):
-                logging.error(f"Script not found: {file_path}")
+                msg = f'Script not found: {file_path}. Please contact Krishagni for help.'
+                logging.error(msg)
+                cursor.execute("UPDATE os_custom_reports_on_demand_runs SET job_end_time = NOW(), job_status = %s, error_message = %s WHERE id = %s",
+                               ('FAILED', msg, run_id))
+                conn.commit()
                 continue
 
             if not os.path.exists(config_path):
-                logging.error(f"Config file not found: {config_path}")
+                msg = f'Config file not found: {config_path}. Please contact Krishagni for help.'
+                logging.error(msg)
+                cursor.execute("UPDATE os_custom_reports_on_demand_runs SET job_end_time = NOW(), job_status = %s, error_message = %s WHERE id = %s",
+                               ('FAILED', msg, run_id))
+                conn.commit()
                 continue
 
+            # Run the script with the config path as an argument
             try:
-                logging.info(f"Running script: python3 {file_path} {config_path}")
-                subprocess.run(['python3', file_path, config_path], check=True)
-                logging.info(f"Completed run_id={run_id} successfully.")
-                set_last_run_id(run_id)
-                last_run_id = run_id  # Update current last run_id
-            except subprocess.CalledProcessError as e:
-                logging.error(f"Error executing script {file_path} for run_id={run_id}: {str(e)}")
+                logging.info(f"Running script {file_path} with config {config_path}")
+                result = subprocess.run(
+                    ['python3', file_path, config_path],
+                    capture_output=True,
+                    text=True
+                )
+
+                if result.returncode == 0:
+                    logging.info(f"Completed run_id={run_id} successfully.")
+                    cursor.execute("UPDATE os_custom_reports_on_demand_runs SET job_end_time = NOW(), job_status = %s WHERE id = %s",
+                                   ('SUCCESS', run_id))
+                else:
+                    error_output = extract_last_error_line(result.stderr or result.stdout)
+                    logging.error(f"Script failed for run_id={run_id}. Error: {error_output}")
+                    cursor.execute("UPDATE os_custom_reports_on_demand_runs SET job_end_time = NOW(), job_status = %s, error_message = %s WHERE id = %s",
+                                   ('FAILED', error_output, run_id))
+
+            except Exception as e:
+                logging.exception(f"Unexpected error while running script for run_id={run_id}: {str(e)}")
+                cursor.execute("UPDATE os_custom_reports_on_demand_runs SET job_end_time = NOW(), job_status = %s, error_message = %s WHERE id = %s",
+                               ('FAILED', str(e), run_id))
+
+            conn.commit()
 
         cursor.close()
         conn.close()
@@ -109,4 +122,4 @@ while True:
     except Exception as e:
         logging.exception(f"Exception in monitoring loop: {str(e)}")
 
-    time.sleep(60)
+    time.sleep(60)  # Wait 1 minute before checking again
