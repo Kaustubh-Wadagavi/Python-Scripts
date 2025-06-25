@@ -1,0 +1,20 @@
+CREATE TABLE migrating_frozen_events (
+    specimen_id BIGINT,
+    specimen_label VARCHAR(255),
+    frozen_on DATETIME,
+    frozen_media VARCHAR(255),
+    INDEX idx_specimen_id (specimen_id),
+    INDEX idx_specimen_label (specimen_label)
+);
+
+
+INSERT INTO migrating_frozen_events (specimen_id, specimen_label)
+SELECT
+  spmn.identifier,
+  spmn.label
+FROM
+  catissue_specimen spmn
+  JOIN os_cp_group_cps grp ON spmn.collection_protocol_id = grp.cp_id
+WHERE
+  grp.group_id = 2
+  and spmn.activity_status != 'Disabled';
