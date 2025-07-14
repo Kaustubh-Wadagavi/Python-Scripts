@@ -1,0 +1,23 @@
+2025-07-14 13:54:41,898 - INFO - Monitoring started.
+2025-07-14 14:00:42,255 - INFO - Processing file: ./input_files/output.csv
+2025-07-14 14:00:47,664 - INFO - Job FAILED. Report saved as: ./output_files/output_FAILED.csv
+2025-07-14 14:05:58,746 - INFO - Monitoring stopped by user.
+2025-07-14 14:06:49,266 - INFO - Monitoring started.
+2025-07-14 14:06:49,266 - INFO - Processing file: ./input_files/output.csv
+2025-07-14 14:06:54,629 - INFO - Job FAILED. Report saved as: ./output_files/output_FAILED.csv
+2025-07-14 14:09:17,331 - INFO - Monitoring stopped by user.
+2025-07-14 14:09:18,355 - INFO - Monitoring started.
+2025-07-14 14:09:18,355 - INFO - Processing file: ./input_files/output.csv
+2025-07-14 14:09:23,730 - INFO - Job FAILED. Report saved as: ./output_files/output_FAILED_20250714_140918.csv
+2025-07-14 14:11:04,723 - INFO - Monitoring stopped by user.
+2025-07-14 14:15:52,103 - INFO - Monitoring started.
+2025-07-14 14:15:52,103 - INFO - Processing file: ./input_files/output.csv
+2025-07-14 14:15:53,975 - WARNING - Unknown status for job 17: QUEUED
+2025-07-14 14:15:53,975 - INFO - Deleted input file: ./input_files/output.csv
+2025-07-14 14:19:54,188 - INFO - Processing file: ./input_files/1.csv
+2025-07-14 14:19:59,575 - INFO - Job FAILED. Report saved as: ./output_files/1_FAILED_20250714_141954.csv
+2025-07-14 14:19:59,575 - INFO - Deleted input file: ./input_files/1.csv
+2025-07-14 15:29:03,487 - INFO - Processing file: ./input_files/1.csv
+2025-07-14 15:29:08,895 - INFO - Job FAILED. Report saved as: ./output_files/1_FAILED_20250714_152903.csv
+2025-07-14 15:29:08,895 - INFO - Deleted input file: ./input_files/1.csv
+2025-07-14 15:33:06,486 - INFO - Monitoring stopped by user.
