@@ -1,21 +1,13 @@
 {
   "username": "admin",
   "password": "Login!@3",
-  "domainName": "openspecimen",
   "serverUrl": "http://localhost:8080/openspecimen/rest/ng",
-
   "objectType": "specimen",
   "importType": "CREATE",
-  "dateFormat": "dd-MM-yyyy",
-  "timeFormat": "HH:mm",
-
-  "objectParams": {
-    "cpId": -1
-  },
-
+  "dateFormat": "",
+  "timeFormat": "",
   "inputDir": "./input_files",
   "outputDir": "./output_files",
   "logFile": "import_job.log",
   "pollIntervalSeconds": 60
 }
-

@@ -18,14 +18,13 @@ config = load_config()
 # ========= CONFIG VALUES =========
 USERNAME = config["username"]
 PASSWORD = config["password"]
-DOMAIN_NAME = config["domainName"]
+DOMAIN_NAME = "openspecimen"  # Hardcoded
 URL = config["serverUrl"]
 
 OBJECT_TYPE = config["objectType"]
-IMPORT_TYPE = config["importType"]
-DATE_FORMAT = config["dateFormat"]
-TIME_FORMAT = config["timeFormat"]
-OBJECT_PARAMS = config["objectParams"]
+IMPORT_TYPE = config["importType"].upper()  # Ensure it's upper case
+DATE_FORMAT = config.get("dateFormat", "")
+TIME_FORMAT = config.get("timeFormat", "")
 
 INPUT_DIR = config["inputDir"]
 OUTPUT_DIR = config["outputDir"]
@@ -34,7 +33,7 @@ POLL_INTERVAL = config["pollIntervalSeconds"]
 
 # ========= CONSTANTS =========
 CSV_TYPE = "SINGLE_ROW_PER_OBJ"
-ATOMIC = "true"
+ATOMIC = True
 
 # ========= LOGGING =========
 logging.basicConfig(
@@ -78,7 +77,6 @@ def create_import_job(token, file_id):
         "dateFormat": DATE_FORMAT,
         "timeFormat": TIME_FORMAT,
         "inputFileId": file_id,
-        "objectParams": OBJECT_PARAMS,
         "atomic": ATOMIC
     }
     try:
@@ -165,7 +163,7 @@ def main():
 
             monitor_job(token, job_id, base_filename)
 
-            # ✅ Delete only the picked file
+            # ✅ Delete the file after processing
             try:
                 os.remove(file_path)
                 logging.info(f"Deleted input file: {file_path}")
@@ -178,4 +176,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
