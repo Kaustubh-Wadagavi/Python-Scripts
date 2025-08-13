@@ -1,0 +1,20 @@
+{
+  "log_file": "/usr/local/openspecimen/logs/combined_backup_import.log",
+  "backup_dir": "/usr/local/openspecimen/os-prod/backup",
+
+  "aws_db_parameter_group": "indiana-mysql-8",
+
+  "backup_db_user": "openspecimen",
+  "backup_db_password": "prod_db_pass",
+  "backup_db_host": "localhost",
+  "backup_db_name": "prod",
+
+  "report_db_user": "openspecimen",
+  "report_db_password": "report_db_pass",
+  "report_db_host": "localhost",
+  "report_db_name": "reporting_db",
+
+  "report_service": "reports",
+
+  "exclude_tables_file": "/usr/local/openspecimen/daily-import/exclude_tables.csv"
+}
